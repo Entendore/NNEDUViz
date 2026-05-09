@@ -1,4 +1,5 @@
 """Entry point for the Neural Network Training Visualizer."""
+
 import sys
 from PySide6.QtWidgets import QApplication
 from theme import apply_theme

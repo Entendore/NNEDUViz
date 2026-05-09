@@ -1,144 +1,175 @@
-"""PyTorch model definitions for all 6 architectures."""
+"""PyTorch neural network model definitions."""
 
 import math
+import numpy as np
 import torch
 import torch.nn as nn
+from typing import List
 
 
-class PosEnc(nn.Module):
-    def __init__(self, d, maxl=200):
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, max_len: int = 200):
         super().__init__()
-        pe = torch.zeros(maxl, d)
-        p = torch.arange(maxl).unsqueeze(1).float()
-        d2 = torch.exp(torch.arange(0, d, 2).float() * -(math.log(10000.0) / d))
-        pe[:, 0::2] = torch.sin(p * d2)
-        pe[:, 1::2] = torch.cos(p * d2)
+        pe = torch.zeros(max_len, d_model)
+        position = torch.arange(max_len).unsqueeze(1).float()
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
         self.register_buffer("pe", pe.unsqueeze(0))
 
-    def forward(self, x):
-        return x + self.pe[:, : x.size(1)]
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x + self.pe[:, :x.size(1)]
 
 
-class PT_MLP(nn.Module):
-    def __init__(self, layers=(2, 64, 32, 2), dropout=0.0):
+class MLP(nn.Module):
+    def __init__(self, layers: List[int] = (2, 64, 32, 2), dropout: float = 0.0):
         super().__init__()
-        self.ls = list(layers)
-        m = []
+        self.layer_sizes = list(layers)
+        modules = []
         for i in range(len(layers) - 1):
-            m.append(nn.Linear(layers[i], layers[i + 1]))
+            modules.append(nn.Linear(layers[i], layers[i + 1]))
             if i < len(layers) - 2:
-                m.append(nn.ReLU())
-                m.append(nn.Dropout(dropout))
-        self.net = nn.Sequential(*m)
-        self._feat = None
+                modules.append(nn.ReLU())
+                if dropout > 0:
+                    modules.append(nn.Dropout(dropout))
+        self.net = nn.Sequential(*modules)
+        self._features = None
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         h = x
         layers = list(self.net.children())
         for i, layer in enumerate(layers):
             h = layer(h)
             if isinstance(layer, nn.Linear) and i < len(layers) - 1:
-                if i + 1 < len(layers) and not isinstance(layers[i + 1], (nn.ReLU, nn.Dropout)):
-                    self._feat = h
-                elif isinstance(layers[i + 1], nn.ReLU):
-                    self._feat = h
+                self._features = h
         return h
 
-    def get_features(self, x):
+    def get_features(self, x: torch.Tensor) -> np.ndarray:
         _ = self(x)
-        return self._feat.detach().cpu().numpy() if self._feat is not None else x.detach().cpu().numpy()
+        if self._features is not None:
+            return self._features.detach().cpu().numpy()
+        return x.detach().cpu().numpy()
 
 
-class PT_CNN(nn.Module):
-    def __init__(self, dropout=0.0):
+class CNN(nn.Module):
+    def __init__(self, dropout: float = 0.0):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv1d(1, 16, 5, padding=2), nn.ReLU(), nn.MaxPool1d(2),
+            nn.Conv1d(1, 16, kernel_size=5, padding=2),
+            nn.ReLU(),
+            nn.MaxPool1d(2),
             nn.Dropout(dropout),
-            nn.Conv1d(16, 32, 5, padding=2), nn.ReLU(), nn.MaxPool1d(2),
+            nn.Conv1d(16, 32, kernel_size=5, padding=2),
+            nn.ReLU(),
+            nn.MaxPool1d(2),
         )
-        self.cls = nn.Sequential(
-            nn.Flatten(), nn.Linear(32 * 8, 64), nn.ReLU(),
-            nn.Dropout(dropout), nn.Linear(64, 3),
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(32 * 8, 64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(64, 3),
         )
 
-    def forward(self, x):
-        return self.cls(self.features(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.dim() == 3:
+            x = x.permute(0, 2, 1)
+        return self.classifier(self.features(x))
 
-    def get_features(self, x):
+    def get_features(self, x: torch.Tensor) -> np.ndarray:
+        if x.dim() == 3:
+            x = x.permute(0, 2, 1)
         return self.features(x).flatten(1).detach().cpu().numpy()
 
 
-class PT_RNN(nn.Module):
-    def __init__(self):
+class RNN(nn.Module):
+    def __init__(self, hidden_size: int = 32):
         super().__init__()
-        self.rnn = nn.RNN(1, 32, 1, batch_first=True)
-        self.fc = nn.Linear(32, 1)
+        self.rnn = nn.RNN(input_size=1, hidden_size=hidden_size, num_layers=1, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
 
-    def forward(self, x):
-        return self.fc(self.rnn(x)[0])
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        output, _ = self.rnn(x)
+        return self.fc(output)
 
 
-class PT_LSTM(nn.Module):
-    def __init__(self):
+class LSTM(nn.Module):
+    def __init__(self, hidden_size: int = 32):
         super().__init__()
-        self.lstm = nn.LSTM(1, 32, 1, batch_first=True)
-        self.fc = nn.Linear(32, 1)
+        self.lstm = nn.LSTM(input_size=1, hidden_size=hidden_size, num_layers=1, batch_first=True)
+        self.fc = nn.Linear(hidden_size, 1)
 
-    def forward(self, x):
-        return self.fc(self.lstm(x)[0])
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        output, _ = self.lstm(x)
+        return self.fc(output)
 
 
-class PT_AttnBlock(nn.Module):
-    def __init__(self, d, nh):
+class AttentionBlock(nn.Module):
+    def __init__(self, d_model: int, num_heads: int):
         super().__init__()
-        self.mha = nn.MultiheadAttention(d, nh, batch_first=True, average_attn_weights=False)
-        self.n1 = nn.LayerNorm(d)
-        self.n2 = nn.LayerNorm(d)
-        self.ff = nn.Sequential(nn.Linear(d, d * 2), nn.ReLU(), nn.Dropout(0.1), nn.Linear(d, d))
-        self.aw = None
+        self.mha = nn.MultiheadAttention(d_model, num_heads, batch_first=True, average_attn_weights=False)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_model * 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(d_model * 2, d_model)
+        )
+        self.attention_weights = None
 
-    def forward(self, x):
-        o, w = self.mha(x, x, x, need_weights=True)
-        self.aw = w.detach().cpu()
-        h = self.n1(x + o)
-        return self.n2(h + self.ff(h))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        attn_output, attn_weights = self.mha(x, x, x, need_weights=True)
+        self.attention_weights = attn_weights.detach().cpu()
+        x = self.norm1(x + attn_output)
+        x = self.norm2(x + self.ffn(x))
+        return x
 
 
-class PT_Transformer(nn.Module):
-    def __init__(self):
+class Transformer(nn.Module):
+    def __init__(self, d_model: int = 32, num_heads: int = 4, num_layers: int = 2):
         super().__init__()
-        self.emb = nn.Linear(1, 32)
-        self.pos = PosEnc(32)
-        self.blocks = nn.ModuleList([PT_AttnBlock(32, 4) for _ in range(2)])
-        self.dec = nn.Linear(32, 1)
+        self.embedding = nn.Linear(1, d_model)
+        self.pos_encoding = PositionalEncoding(d_model)
+        self.blocks = nn.ModuleList([AttentionBlock(d_model, num_heads) for _ in range(num_layers)])
+        self.output_proj = nn.Linear(d_model, 1)
         self.all_attn = []
 
-    def forward(self, x):
-        h = self.pos(self.emb(x))
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.pos_encoding(self.embedding(x))
         self.all_attn = []
-        for b in self.blocks:
-            h = b(h)
-            self.all_attn.append(b.aw)
-        return self.dec(h)
+        for block in self.blocks:
+            h = block(h)
+            self.all_attn.append(block.attention_weights)
+        return self.output_proj(h)
 
 
-class PT_Gen(nn.Module):
-    def __init__(self):
+class Generator(nn.Module):
+    def __init__(self, latent_dim: int = 16):
         super().__init__()
-        self.net = nn.Sequential(nn.Linear(16, 64), nn.ReLU(), nn.Linear(64, 64), nn.ReLU(), nn.Linear(64, 2))
+        self.net = nn.Sequential(
+            nn.Linear(latent_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 64),
+            nn.ReLU(),
+            nn.Linear(64, 2)
+        )
 
-    def forward(self, x):
-        return self.net(x)
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        return self.net(z)
 
 
-class PT_Dis(nn.Module):
+class Discriminator(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(2, 64), nn.LeakyReLU(0.2), nn.Linear(64, 64),
-            nn.LeakyReLU(0.2), nn.Linear(64, 1), nn.Sigmoid(),
+            nn.Linear(2, 64),
+            nn.LeakyReLU(0.2),
+            nn.Linear(64, 64),
+            nn.LeakyReLU(0.2),
+            nn.Linear(64, 1),
+            nn.Sigmoid()
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
