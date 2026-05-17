@@ -5,34 +5,14 @@ from typing import Tuple
 
 
 def train_test_split(
-    X: np.ndarray, 
-    y: np.ndarray, 
+    X: np.ndarray,
+    y: np.ndarray,
     test_ratio: float = 0.2,
     stratify: bool = True
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Split data into training and test sets.
-    
-    Parameters
-    ----------
-    X : array-like of shape (n_samples, ...)
-        Feature matrix
-    y : array-like of shape (n_samples,)
-        Labels or targets
-    test_ratio : float, default 0.2
-        Proportion of data to use for testing (0.0 to 0.5)
-    stratify : bool, default True
-        If True, ensure class proportions are preserved in both sets
-    
-    Returns
-    -------
-    X_train, X_test, y_train, y_test : numpy arrays
-    """
     n = len(X)
     n_test = max(1, int(n * test_ratio))
-    
     if stratify and y.ndim == 1:
-        # Split each class proportionally
         train_indices, test_indices = [], []
         classes = np.unique(y)
         for cls in classes:
@@ -41,17 +21,14 @@ def train_test_split(
             n_cls_test = max(1, int(len(cls_indices) * test_ratio))
             test_indices.extend(cls_indices[:n_cls_test])
             train_indices.extend(cls_indices[n_cls_test:])
-        
         train_idx = np.array(train_indices)
         test_idx = np.array(test_indices)
     else:
         indices = np.random.permutation(n)
         train_idx = indices[n_test:]
         test_idx = indices[:n_test]
-    
     np.random.shuffle(train_idx)
     np.random.shuffle(test_idx)
-    
     if X.ndim == 3:
         return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
     return X[train_idx], X[test_idx], y[train_idx], y[test_idx]

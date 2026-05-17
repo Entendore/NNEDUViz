@@ -22,7 +22,8 @@ class ThemeColors:
 
     @staticmethod
     def qc(hex_color: str, alpha: int = 255) -> QColor:
-        return QColor(int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16), alpha)
+        return QColor(int(hex_color[1:3], 16), int(hex_color[3:5], 16),
+                      int(hex_color[5:7], 16), alpha)
 
     @staticmethod
     def css() -> str:
@@ -120,6 +121,7 @@ QLabel {{ color: {T.SUB}; }}
 QLabel#desc {{ color: {T.DIM}; font-size: 10px; font-style: italic; padding: 2px; }}
 QLabel#tip {{ color: {T.TEAL}; font-size: 10px; padding: 4px; }}
 QLabel#info {{ color: {T.PRI}; font-size: 10px; padding: 4px; }}
+QLabel#eigen_info {{ color: {T.MAU}; font-size: 10px; padding: 4px; }}
 QCheckBox {{ color: {T.SUB}; spacing: 6px; }}
 QSlider::groove:horizontal {{ height: 4px; background: {T.OVR}; border-radius: 2px; }}
 QSlider::handle:horizontal {{ background: {T.PRI}; width: 14px; margin: -5px 0; border-radius: 7px; }}

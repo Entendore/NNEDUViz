@@ -1,10 +1,10 @@
-"""PyTorch neural network model definitions."""
+"""PyTorch neural network model definitions with weight access methods."""
 
 import math
 import numpy as np
 import torch
 import torch.nn as nn
-from typing import List
+from typing import List, Dict, Optional
 
 
 class PositionalEncoding(nn.Module):
@@ -50,6 +50,14 @@ class MLP(nn.Module):
             return self._features.detach().cpu().numpy()
         return x.detach().cpu().numpy()
 
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        """Return all 2D weight matrices with their names."""
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
+
 
 class CNN(nn.Module):
     def __init__(self, dropout: float = 0.0):
@@ -81,6 +89,13 @@ class CNN(nn.Module):
             x = x.permute(0, 2, 1)
         return self.features(x).flatten(1).detach().cpu().numpy()
 
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
+
 
 class RNN(nn.Module):
     def __init__(self, hidden_size: int = 32):
@@ -92,6 +107,13 @@ class RNN(nn.Module):
         output, _ = self.rnn(x)
         return self.fc(output)
 
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
+
 
 class LSTM(nn.Module):
     def __init__(self, hidden_size: int = 32):
@@ -102,6 +124,13 @@ class LSTM(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         output, _ = self.lstm(x)
         return self.fc(output)
+
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
 
 
 class AttentionBlock(nn.Module):
@@ -143,6 +172,13 @@ class Transformer(nn.Module):
             self.all_attn.append(block.attention_weights)
         return self.output_proj(h)
 
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
+
 
 class Generator(nn.Module):
     def __init__(self, latent_dim: int = 16):
@@ -157,6 +193,13 @@ class Generator(nn.Module):
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         return self.net(z)
+
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
 
 
 class Discriminator(nn.Module):
@@ -173,3 +216,10 @@ class Discriminator(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
+
+    def get_weight_matrices(self) -> Dict[str, torch.Tensor]:
+        result = {}
+        for name, param in self.named_parameters():
+            if param.dim() >= 2 and "weight" in name:
+                result[name] = param.data
+        return result
